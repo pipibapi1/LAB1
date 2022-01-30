@@ -1,7 +1,10 @@
-print("Xin chào ThingsBoard")
-import paho.mqtt.client as mqttclient
-import time
 import json
+import time
+import paho.mqtt.client as mqttclient
+import subprocess as sp
+import re
+
+print("Xin chào ThingsBoard")
 
 BROKER_ADDRESS = "demo.thingsboard.io"
 PORT = 1883
@@ -46,9 +49,30 @@ temp = 30
 humi = 50
 light_intensity = 100
 counter = 0
-longitude = 106.7
-latitude = 10.6
+
+"""How to dynamically get longitude and latitude"""
+accuracy = 3
 while True:
+    pshellcomm = ['powershell']
+    pshellcomm.append('add-type -assemblyname system.device; ' \
+                      '$loc = new-object system.device.location.geocoordinatewatcher;' \
+                      '$loc.start(); ' \
+                      'while(($loc.status -ne "Ready") -and ($loc.permission -ne "Denied")) ' \
+                      '{start-sleep -milliseconds 100}; ' \
+                      '$acc = %d; ' \
+                      'while($loc.position.location.horizontalaccuracy -gt $acc) ' \
+                      '{start-sleep -milliseconds 100; $acc = [math]::Round($acc*1.5)}; ' \
+                      '$loc.position.location.latitude; ' \
+                      '$loc.position.location.longitude; ' \
+                      '$loc.position.location.horizontalaccuracy; ' \
+                      '$loc.stop()' % (accuracy))
+
+    p = sp.Popen(pshellcomm, stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.STDOUT, text=True)
+    (out, err) = p.communicate()
+    out = re.split('\n', out)
+
+    latitude = float(out[0])
+    longitude = float(out[1])
     collect_data = {'temperature': temp, 'humidity': humi, 'light': light_intensity
                     ,'longitude': longitude, 'latitude': latitude}
     temp += 1
